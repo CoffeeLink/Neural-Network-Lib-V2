@@ -39,20 +39,45 @@ def softmax_prime(x):
 
 
 class _Layer:
-    def __init__(self, size, activation, ):
-        self.size = size
+    def __init__(self, inNodes, outNodes, activation):
+        self.inNodes = inNodes
+        self.outNodes = outNodes
         self.activation = activation
-        self.weights = np.random.rand(size, size)
-        self.bias = np.random.rand(size, 1)
-        self.z = np.zeros((size, 1))
-        self.a = np.zeros((size, 1))
-        self.delta = np.zeros((size, 1))
+        self.weights = np.random.randn(inNodes, outNodes)
+        self.biases = np.random.randn(outNodes, 1)
+
+    def calculateOutputs(self, inputs):
+        weightedInputs = []
+
+        for nodeOutput in range(self.outNodes):
+            weightedInput = self.biases[nodeOutput]
+            for nodeInput in range(self.inNodes):
+                weightedInput += inputs[nodeInput] * self.weights[nodeInput][nodeOutput]
+            weightedInputs[nodeOutput] = self.activation(weightedInput)
+        
+        return weightedInputs
+    
 
 
 class NeuralNetwork:
-    def __init__(self, input_nodes, hidden_nodes, output_nodes, learning_rate, activation_function):
-        self.input_nodes = input_nodes
-        self.hidden_nodes = hidden_nodes
-        self.output_nodes = output_nodes
+    def __init__(self, layer_sizes : list, learning_rate, activation_function):
+        self.layer_sizes = layer_sizes
+        self.layers = [] #list of layers
+        for i in range(len(layer_sizes)-1):
+            self.layers.append(_Layer(layer_sizes[i], layer_sizes[i+1], activation_function)) #create layers
         self.learning_rate = learning_rate
         self.activation_function = activation_function
+        
+    def calculateOutputs(self, inputs):
+        outputs = inputs
+        for layer in self.layers:
+            outputs = layer.calculateOutputs(outputs)
+        return outputs
+    
+
+
+
+n = NeuralNetwork([2,3,2], 0.1, sigmoid)
+print(n.calculateOutputs([1,2]))
+    
+
