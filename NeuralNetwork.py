@@ -43,6 +43,8 @@ class _Layer:
         self.inNodes = inNodes
         self.outNodes = outNodes
         self.activation = activation
+        self.weightGradient = np.zeros((inNodes, outNodes))
+        self.biasGradient = np.zeros((outNodes, 1))
         self.weights = np.random.randn(inNodes, outNodes)
         self.biases = np.random.randn(outNodes, 1)
 
@@ -60,7 +62,15 @@ class _Layer:
     def nodeCost(self, output, target):
         error = target - output
         return error * error
-     
+
+    def applyGradient(self, learningRate):
+        for nodeOutput in range(self.outNodes):
+            for nodeInput in range(self.inNodes):
+                self.weights[nodeInput][nodeOutput] = learningRate * self.weightGradient[nodeInput][nodeOutput]
+            self.biases[nodeOutput] -= learningRate * self.biasGradient[nodeOutput]
+    
+    
+    
 
 class DataPoint:
     def __init__(self, inputs, targets):
@@ -109,14 +119,38 @@ class NeuralNetwork:
         return cost/len(data)
     
     def learn(self, data : list, epochs, batch_size):
-        for epoch in range(epochs):
-            rand.shuffle(data)
-            batches = [data[x:x+batch_size] for x in range(0, len(data), batch_size)]
-            for batch in batches:
-                pass
+        h = 0.0001
+        originalCost = self.avrageCost(data)
+        
+        for layer in self.layers:
+            for nodeInput in range(layer.inNodes):
+                for nodeOutput in range(layer.outNodes):
+                    layer.weights[nodeInput][nodeOutput] += h
+                    deltaCost = self.avrageCost(data) - originalCost
+                    layer.weightGradient[nodeInput][nodeOutput] = deltaCost/h
+                    layer.weights[nodeInput][nodeOutput] -= h
+            
+            for nodeOutput in range(layer.outNodes):
+                layer.biases[nodeOutput] += h
+                deltaCost = self.avrageCost(data) - originalCost
+                layer.biasGradient[nodeOutput] = deltaCost/h
+                layer.biases[nodeOutput] -= h
+            
+        for layer in self.layers:
+            layer.applyGradient(self.learning_rate)
 
 n = NeuralNetwork([2,3,2], 0.1, sigmoid)
-print(n.cost(DataPoint([1,1], [0,1])))
-print(n.calculateOutputs([1,2]))
+
+dataSet = []
+dataSet.append(DataPoint([0,0], [0,1]))
+dataSet.append(DataPoint([0,1], [1,0]))
+dataSet.append(DataPoint([1,0], [1,0]))
+dataSet.append(DataPoint([1,1], [0,1]))
+
+for i in range(1000):
+    n.learn(dataSet, 1, 1)
+    print(n.avrageCost(dataSet))
+
+print(n.calculateOutputs([1,1]))
     
 
