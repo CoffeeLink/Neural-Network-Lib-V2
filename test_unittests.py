@@ -3,7 +3,7 @@ import NeuralNetwork
 
 class Test_NeuralNetwork(unittest.TestCase):
     def test_random_network(self):
-        network = NeuralNetwork.NeuralNetwork([2,2,2], 2, NeuralNetwork.sigmoid)
+        network = NeuralNetwork.NeuralNetwork([2,2,2], NeuralNetwork.sigmoid)
         self.assertEqual(network.layers[0].inNodes, 2)
         self.assertEqual(network.layers[0].outNodes, 2)
         self.assertEqual(network.layers[0].activation, NeuralNetwork.sigmoid)
@@ -18,7 +18,6 @@ class Test_NeuralNetwork(unittest.TestCase):
         self.assertEqual(layer.outNodes, 2)
         self.assertEqual(layer.activation, NeuralNetwork.sigmoid)
         self.assertEqual(layer.weights.shape, (2,2))
-        self.assertEqual(layer.biases.shape, (2,1))
     
     def test_random_datapoint(self):
         datapoint = NeuralNetwork.DataPoint([1,2], [3,4])

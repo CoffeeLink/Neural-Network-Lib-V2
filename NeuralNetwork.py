@@ -1,11 +1,6 @@
 # Copyright 2022 by the author(s) of this code.
 # All rights reserved.
 
-#document my code with docstrings and comments as needed to explain what the code is doing and why.
-#use the numpy library for all matrix operations
-
-
-
 import numpy as np
 import math
 import random as rand
@@ -13,6 +8,9 @@ import json
 import logging
 
 #activation functions
+def linear(x):
+    return x
+
 def sigmoid(x):
     return 1/(1+np.exp(-x))
 
@@ -44,18 +42,18 @@ class _Layer:
         self.outNodes = outNodes
         self.activation = activation
         self.weightGradient = np.zeros((inNodes, outNodes))
-        self.biasGradient = np.zeros((outNodes, 1))
+        self.biasGradient = np.zeros((outNodes))
         self.weights = np.random.randn(inNodes, outNodes)
-        self.biases = np.random.randn(outNodes, 1)
+        self.biases = np.zeros((outNodes))
 
     def calculateOutputs(self, inputs):
-        weightedInputs = np.zeros((self.outNodes, 1))
+        weightedInputs = np.zeros((self.outNodes))
 
         for nodeOutput in range(self.outNodes):
             weightedInput = self.biases[nodeOutput]
             for nodeInput in range(self.inNodes):
                 weightedInput += inputs[nodeInput] * self.weights[nodeInput][nodeOutput]
-            weightedInputs[nodeOutput] = self.activation(weightedInput)
+            weightedInputs[nodeOutput] -= self.activation(weightedInput) 
         
         return weightedInputs
 
@@ -91,12 +89,11 @@ class DataPoint:
 
 
 class NeuralNetwork:
-    def __init__(self, layer_sizes : list, learning_rate, activation_function):
+    def __init__(self, layer_sizes : list, activation_function):
         self.layer_sizes = layer_sizes
         self.layers = [] #list of layers
         for i in range(len(layer_sizes)-1):
             self.layers.append(_Layer(layer_sizes[i], layer_sizes[i+1], activation_function)) #create layers
-        self.learning_rate = learning_rate
         self.activation_function = activation_function
         
     def calculateOutputs(self, inputs):
@@ -116,10 +113,11 @@ class NeuralNetwork:
         cost = 0
         for dataPoint in data:
             cost += self.cost(dataPoint)
-        return cost/len(data)
+        return cost / len(data)
     
-    def learn(self, data : list, epochs, batch_size):
+    def gradientDescent(self, data : list, learningRate = 0.1):
         h = 0.0001
+        
         originalCost = self.avrageCost(data)
         
         for layer in self.layers:
@@ -127,30 +125,36 @@ class NeuralNetwork:
                 for nodeOutput in range(layer.outNodes):
                     layer.weights[nodeInput][nodeOutput] += h
                     deltaCost = self.avrageCost(data) - originalCost
-                    layer.weightGradient[nodeInput][nodeOutput] = deltaCost/h
                     layer.weights[nodeInput][nodeOutput] -= h
+                    layer.weightGradient[nodeInput][nodeOutput] = deltaCost / h
             
             for nodeOutput in range(layer.outNodes):
                 layer.biases[nodeOutput] += h
                 deltaCost = self.avrageCost(data) - originalCost
-                layer.biasGradient[nodeOutput] = deltaCost/h
                 layer.biases[nodeOutput] -= h
+                layer.biasGradient[nodeOutput] = deltaCost / h
             
         for layer in self.layers:
-            layer.applyGradient(self.learning_rate)
+            layer.applyGradient(learningRate)
+        
+    def train(self, data : list, epochs, batch_size,learningRate = 0.1):
+        for i in range(epochs):
+            rand.shuffle(data)
+            batches = [data[k:k+batch_size] for k in range(0, len(data), batch_size)]
+            for batch in batches:
+                self.gradientDescent(batch, learningRate)
+            if i % 100 == 0:
+                print("Epoch: " + str(i) + " Cost: " + str(self.avrageCost(data)))
+            
 
-n = NeuralNetwork([2,3,2], 0.1, sigmoid)
+n = NeuralNetwork([2,3,2], sigmoid)
 
 dataSet = []
-dataSet.append(DataPoint([0,0], [0,1]))
+dataSet.append(DataPoint([0,0], [0,0]))
 dataSet.append(DataPoint([0,1], [1,0]))
 dataSet.append(DataPoint([1,0], [1,0]))
 dataSet.append(DataPoint([1,1], [0,1]))
 
-for i in range(1000):
-    n.learn(dataSet, 1, 1)
-    print(n.avrageCost(dataSet))
+n.train(dataSet, 10000, 1, 0.1)
 
 print(n.calculateOutputs([1,1]))
-    
-
