@@ -14,52 +14,58 @@ def linear(x):
 def sigmoid(x):
     return 1/(1+np.exp(-x))
 
-def sigmoid_prime(x):
+def sigmoid_derivative(x):
     return sigmoid(x)*(1-sigmoid(x))
 
 def tanh(x):
     return np.tanh(x)
 
-def tanh_prime(x):
+def tanh_derivative(x):
     return 1.0 - x**2
 
 def relu(x):
     return np.maximum(0,x)
 
-def relu_prime(x):
+def relu_derivative(x):
     return 1*(x>0)
 
 def softmax(x):
     return np.exp(x)/np.sum(np.exp(x), axis=0)
 
-def softmax_prime(x):
+def softmax_derivative(x):
     return softmax(x)*(1-softmax(x))
 
 
 class _Layer:
-    def __init__(self, inNodes, outNodes, activation):
+    def __init__(self, inNodes, outNodes, activation, activationDerivative):
         self.inNodes = inNodes
         self.outNodes = outNodes
         self.activation = activation
+        self.activationDerivative = activationDerivative
+        
+        self.activations = np.zeros((outNodes))
+        self.weightedInputs = np.zeros((outNodes))
+        self.inputs = np.zeros((inNodes))
+        
         self.weightGradient = np.zeros((inNodes, outNodes))
         self.biasGradient = np.zeros((outNodes))
+        
         self.weights = np.random.randn(inNodes, outNodes)
         self.biases = np.zeros((outNodes))
 
     def calculateOutputs(self, inputs):
         weightedInputs = np.zeros((self.outNodes))
+        self.inputs = inputs
 
         for nodeOutput in range(self.outNodes):
             weightedInput = self.biases[nodeOutput]
             for nodeInput in range(self.inNodes):
                 weightedInput += inputs[nodeInput] * self.weights[nodeInput][nodeOutput]
-            weightedInputs[nodeOutput] -= self.activation(weightedInput) 
-        
-        return weightedInputs
+            self.weightedInputs[nodeOutput] = weightedInput
+            weightedInputs[nodeOutput] = self.activation(weightedInput) 
 
-    def nodeCost(self, output, target):
-        error = target - output
-        return error * error
+        self.activations = weightedInputs
+        return weightedInputs
 
     def applyGradient(self, learningRate):
         for nodeOutput in range(self.outNodes):
@@ -67,7 +73,46 @@ class _Layer:
                 self.weights[nodeInput][nodeOutput] = learningRate * self.weightGradient[nodeInput][nodeOutput]
             self.biases[nodeOutput] -= learningRate * self.biasGradient[nodeOutput]
     
+    def clearGradients(self):
+        self.weightGradient = np.zeros((self.inNodes, self.outNodes))
+        self.biasGradient = np.zeros((self.outNodes))
     
+    def nodeCost(self, output, target):
+        return (output - target)**2
+    
+    def nodeCostDerivative(self, output, target):
+        return 2*(output - target)
+    
+    def calculateOutputLayerValues(self, expectedOutputs):
+        nodeValues = np.zeros((self.outNodes))
+        for node in range(self.outNodes):
+            costDerivative = self.nodeCostDerivative(self.activations[node], expectedOutputs[node])
+            activationDerivative = self.activationDerivative(self.activations[node])
+            nodeValues[node] = costDerivative * activationDerivative
+        
+        return nodeValues
+
+    def updateGradients(self, nodeValues):
+        for nodeOutput in range(self.outNodes):
+            for nodeInput in range(self.inNodes):
+                derivativeCostWithRespectToWeight = nodeValues[nodeOutput] * self.inputs[nodeInput]
+                self.weightGradient[nodeInput][nodeOutput] += derivativeCostWithRespectToWeight
+            derivativeCostWithRespectToBias = nodeValues[nodeOutput]
+            self.biasGradient += derivativeCostWithRespectToBias
+    
+    def calculateHiddenLayerValues(self, oldLayer, oldNodeValues):
+        newNodeValues = np.zeros((self.outNodes))
+        for node in range(self.outNodes):
+            newNodeValue = 0
+            for oldNode in range(oldLayer.outNodes):
+                weightedInputDerivate = oldLayer.weights[node][oldNode]
+                newNodeValue += oldNodeValues[oldNode] * weightedInputDerivate
+            newNodeValue *= self.activationDerivative(self.activations[node])
+            newNodeValues[node] = newNodeValue
+        
+        return newNodeValues
+                
+            
     
 
 class DataPoint:
@@ -89,12 +134,13 @@ class DataPoint:
 
 
 class NeuralNetwork:
-    def __init__(self, layer_sizes : list, activation_function):
+    def __init__(self, layer_sizes : list, activation_function, activation_function_derivative):
         self.layer_sizes = layer_sizes
         self.layers = [] #list of layers
         for i in range(len(layer_sizes)-1):
-            self.layers.append(_Layer(layer_sizes[i], layer_sizes[i+1], activation_function)) #create layers
+            self.layers.append(_Layer(layer_sizes[i], layer_sizes[i+1], activation_function, activation_function_derivative)) #create layers
         self.activation_function = activation_function
+        self.activation_function_derivative = activation_function_derivative
         
     def calculateOutputs(self, inputs):
         outputs = inputs
@@ -102,12 +148,25 @@ class NeuralNetwork:
             outputs = layer.calculateOutputs(outputs)
         return outputs
 
+    def nodeCost(self, output, target):
+        return (output - target)**2
+    
+    def nodeCostDerivative(self, output, target):
+        return 2*(output - target)
+    
     def cost(self, dataPoint : DataPoint):
         outputs = self.calculateOutputs(dataPoint.getInputs())
         cost = 0
-        for node in range(len(outputs)):
-            cost += self.layers[-1].nodeCost(outputs[node], dataPoint.getTarget(node))
+        for i in range(len(outputs)):
+            cost += self.nodeCost(outputs[i], dataPoint.getTarget(i))
         return cost
+    
+    def costDerivative(self, dataPoint : DataPoint):
+        outputs = self.calculateOutputs(dataPoint.getInputs())
+        costDerivative = []
+        for i in range(len(outputs)):
+            costDerivative.append(2*(outputs[i] - dataPoint.getTarget(i)))
+        return costDerivative
     
     def avrageCost(self, data : list):
         cost = 0
@@ -115,46 +174,45 @@ class NeuralNetwork:
             cost += self.cost(dataPoint)
         return cost / len(data)
     
-    def gradientDescent(self, data : list, learningRate = 0.1):
-        h = 0.0001
-        
-        originalCost = self.avrageCost(data)
-        
-        for layer in self.layers:
-            for nodeInput in range(layer.inNodes):
-                for nodeOutput in range(layer.outNodes):
-                    layer.weights[nodeInput][nodeOutput] += h
-                    deltaCost = self.avrageCost(data) - originalCost
-                    layer.weights[nodeInput][nodeOutput] -= h
-                    layer.weightGradient[nodeInput][nodeOutput] = deltaCost / h
-            
-            for nodeOutput in range(layer.outNodes):
-                layer.biases[nodeOutput] += h
-                deltaCost = self.avrageCost(data) - originalCost
-                layer.biases[nodeOutput] -= h
-                layer.biasGradient[nodeOutput] = deltaCost / h
-            
+    def applyGradients(self, learningRate):
         for layer in self.layers:
             layer.applyGradient(learningRate)
-        
-    def train(self, data : list, epochs, batch_size,learningRate = 0.1):
-        for i in range(epochs):
-            rand.shuffle(data)
-            batches = [data[k:k+batch_size] for k in range(0, len(data), batch_size)]
-            for batch in batches:
-                self.gradientDescent(batch, learningRate)
-            if i % 100 == 0:
-                print("Epoch: " + str(i) + " Cost: " + str(self.avrageCost(data)))
+    
+    def clearGradients(self):
+        for layer in self.layers:
+            layer.clearGradients()
+    
+    def updateAllGradients(self, dataPoint : DataPoint):
+        self.calculateOutputs(dataPoint.getInputs())
+        outLayer = self.layers[-1]
+        nodeValues = outLayer.calculateOutputLayerValues(dataPoint.getTargets())
+        outLayer.updateGradients(nodeValues)
+        for i in range(len(self.layers)-2, -1, -1):
+            nodeValues = self.layers[i].calculateHiddenLayerValues(self.layers[i+1], nodeValues)
+            self.layers[i].updateGradients(nodeValues)
             
-
-n = NeuralNetwork([2,3,2], sigmoid)
+    def _learn(self, dataPoints : list, learningRate):
+        for dataPoint in dataPoints:
+            self.updateAllGradients(dataPoint)
+        self.applyGradients(learningRate / len(dataPoints))
+        self.clearGradients()
+    
+    def learn(self, dataPoints : list, learningRate, iterations):
+        for i in range(iterations):
+            self._learn(dataPoints, learningRate)
+            if i % 100 == 0:
+                print("Iteration: " + str(i) + " Cost: " + str(self.avrageCost(dataPoints)))
+    
+    
+    
+n = NeuralNetwork([2,3,2], sigmoid, sigmoid_derivative)
 
 dataSet = []
-dataSet.append(DataPoint([0,0], [0,0]))
+dataSet.append(DataPoint([0,0], [1,0]))
 dataSet.append(DataPoint([0,1], [1,0]))
 dataSet.append(DataPoint([1,0], [1,0]))
 dataSet.append(DataPoint([1,1], [0,1]))
 
-n.train(dataSet, 10000, 1, 0.1)
+n.learn(dataSet, 0.1, 1000)
 
 print(n.calculateOutputs([1,1]))
