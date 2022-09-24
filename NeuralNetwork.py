@@ -5,6 +5,8 @@ import numpy as np
 import math
 import random as rand
 import json
+import matplotlib.pyplot as plt
+import pickle
 import logging
 
 #activation functions
@@ -137,6 +139,7 @@ class NeuralNetwork:
     def __init__(self, layer_sizes : list, activation_function, activation_function_derivative):
         self.layer_sizes = layer_sizes
         self.layers = [] #list of layers
+        self.costVecor = []
         for i in range(len(layer_sizes)-1):
             self.layers.append(_Layer(layer_sizes[i], layer_sizes[i+1], activation_function, activation_function_derivative)) #create layers
         self.activation_function = activation_function
@@ -203,16 +206,42 @@ class NeuralNetwork:
             if i % 100 == 0:
                 print("Iteration: " + str(i) + " Cost: " + str(self.avrageCost(dataPoints)))
     
+    def gradientDescent(self, data : list, learningRate = 0.1):
+        h = 0.0001
+        self.clearGradients()
+        
+        originalCost = self.avrageCost(data)
+        
+        for layer in self.layers:
+            for nodeInput in range(layer.inNodes):
+                for nodeOutput in range(layer.outNodes):
+                    layer.weights[nodeInput][nodeOutput] += h
+                    deltaCost = self.avrageCost(data) - originalCost
+                    layer.weights[nodeInput][nodeOutput] -= h
+                    layer.weightGradient[nodeInput][nodeOutput] = deltaCost / h
+            
+            for nodeOutput in range(layer.outNodes):
+                layer.biases[nodeOutput] += h
+                deltaCost = self.avrageCost(data) - originalCost
+                layer.biases[nodeOutput] -= h
+                layer.biasGradient[nodeOutput] = deltaCost / h
+
+        self.applyGradients(learningRate)
     
+    def trainWithGradientDescend(self, data : list, epochs, batch_size,learningRate = 0.1):
+            for i in range(epochs):
+                rand.shuffle(data)
+                batches = [data[k:k+batch_size] for k in range(0, len(data), batch_size)]
+                for batch in batches:
+                    self.gradientDescent(batch, learningRate)
+                if i % 100 == 0:
+                    self.costVecor.append([self.avrageCost(data), i])
+                    print("Epoch: " + str(i) + " Cost: " + str(self.avrageCost(data)))
     
-n = NeuralNetwork([2,3,2], sigmoid, sigmoid_derivative)
-
-dataSet = []
-dataSet.append(DataPoint([0,0], [1,0]))
-dataSet.append(DataPoint([0,1], [1,0]))
-dataSet.append(DataPoint([1,0], [1,0]))
-dataSet.append(DataPoint([1,1], [0,1]))
-
-n.learn(dataSet, 0.1, 1000)
-
-print(n.calculateOutputs([1,1]))
+    def save(self, fileName):
+        with open(fileName, "wb") as f:
+            pickle.dump(self, f)
+    
+    def load(fileName):
+        with open(fileName, "rb") as f:
+            return pickle.load(f)
