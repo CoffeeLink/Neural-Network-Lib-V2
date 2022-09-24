@@ -5,37 +5,91 @@
 import numpy as np
 import random as rand
 import json
-import matplotlib.pyplot as plt
 import pickle
 
+
 #activation functions
-def linear(x):
-    return x
+class ActivationFunction:
+    def __init__(self, activation, derivative):
+        """ActivationFunction is a class that holds an activation function and its derivative.
 
-def sigmoid(x):
-    return 1/(1+np.exp(-x))
+        Args:
+            activation (function): The activation function.
+            derivative (function): The derivative of the activation function.
+        """
+        self.activation = activation
+        self.derivative = derivative
+    
+    def __call__(self, x : float):
+        """__call__ is a function that calls the activation function.
+        
+        Args:
+            x (float): The input to the activation function.
+        
+        Returns:
+            float: The output of the activation function.
+        """
+        return self.activation(x)
+    
+    def derivative(self, x : float):
+        """derivative is a function that calls the derivative of the activation function.
 
-def sigmoid_derivative(x):
-    return sigmoid(x)*(1-sigmoid(x))
+        Args:
+            x (float): The input to the derivative of the activation function.
 
-def tanh(x):
-    return np.tanh(x)
+        Returns:
+            float: The output of the derivative of the activation function.
+        """
+        return self.derivative(x)
 
-def tanh_derivative(x):
-    return 1.0 - x**2
+class sigmoidActivation(ActivationFunction):
+    def sigmoid(self, x):
+        return 1/(1+np.exp(-x))
 
-def relu(x):
-    return np.maximum(0,x)
+    def sigmoid_derivative(self, x):
+        return self.sigmoid(x)*(1-self.sigmoid(x))
+    
+    def __init__(self):
+        super().__init__(self.sigmoid, self.sigmoid_derivative)
 
-def relu_derivative(x):
-    return 1*(x>0)
+class linearActivation(ActivationFunction):
+    def linear(self, x):
+        return x
 
-def softmax(x):
-    return np.exp(x)/np.sum(np.exp(x), axis=0)
+    def linear_derivative(self, x):
+        return 1
+    
+    def __init__(self):
+        super().__init__(self.linear, self.linear_derivative)
 
-def softmax_derivative(x):
-    return softmax(x)*(1-softmax(x))
+class tanhActivation(ActivationFunction):
+    def tanh(self, x):
+        return np.tanh(x)
 
+    def tanh_derivative(self, x):
+        return 1.0 - x**2
+    def __init__(self):
+        super().__init__(self.tanh, self.tanh_derivative)
+
+class reluActivation(ActivationFunction):
+    def relu(self, x):
+        return np.maximum(0,x)
+
+    def relu_derivative(self, x):
+        return 1*(x>0)
+    
+    def __init__(self):
+        super().__init__(self.relu, self.relu_derivative)
+
+class softmaxActivation(ActivationFunction):
+    def softmax(self, x):
+        return np.exp(x)/np.sum(np.exp(x), axis=0)
+
+    def softmax_derivative(self, x):
+        return self.softmax(x)*(1-self.softmax(x))
+    
+    def __init__(self):
+        super().__init__(self.softmax, self.softmax_derivative)
 
 class _Layer:
     def __init__(self, inNodes : int, outNodes : int, activation, activationDerivative):
@@ -133,9 +187,6 @@ class _Layer:
             newNodeValues[node] = newNodeValue
         
         return newNodeValues
-                
-            
-    
 
 class DataPoint:
     def __init__(self, inputs : list[float], targets : list[float]):
@@ -188,21 +239,20 @@ class DataPoint:
 
 
 class NeuralNetwork:
-    def __init__(self, layer_sizes : list[int], activation_function, activation_function_derivative):
+    def __init__(self, layer_sizes : list[int], activation_function : ActivationFunction):
         """Creates a new neural network with the given layer sizes and activation functions
 
         Args:
             layer_sizes (list[int]): The sizes of the layers in the network
-            activation_function (Function): The activation function to use for the network
-            activation_function_derivative (Function): The derivative of the activation function to use for the network
+            activation_function (ActivationFunction): The activation function to use for the network (same for all layers)
         """
         self.layer_sizes = layer_sizes
         self.layers = [] #list of layers
         self.costVecor = [] #list of costs
         for i in range(len(layer_sizes)-1):
-            self.layers.append(_Layer(layer_sizes[i], layer_sizes[i+1], activation_function, activation_function_derivative)) #create layers
+            self.layers.append(_Layer(layer_sizes[i], layer_sizes[i+1], activation_function, activation_function.derivative)) #create layers
         self.activation_function = activation_function
-        self.activation_function_derivative = activation_function_derivative
+        self.activation_function_derivative = activation_function.derivative
         
     def calculateOutputs(self, inputs: list):
         """Calculates the outputs of the network for the given inputs
