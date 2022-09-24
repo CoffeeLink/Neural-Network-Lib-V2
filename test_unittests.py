@@ -36,6 +36,13 @@ class Test_NeuralNetwork(unittest.TestCase):
         self.assertEqual(layer.nodeCost(1, 0), 1)
         self.assertEqual(layer.nodeCost(0, 1), 1)
         self.assertEqual(layer.nodeCost(0, 0), 0)
+    
+    def test_gradient_descent(self):
+        network = NeuralNetwork.NeuralNetwork([2,2,2], NeuralNetwork.sigmoid, NeuralNetwork.sigmoid_derivative)
+        datapoint = NeuralNetwork.DataPoint([1,2], [3,4])
+        network.trainWithGradientDescend([datapoint], 1, 1, 0.1)
+        self.assertEqual(len(network.costVecor), 1)
+       
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,13 +1,12 @@
 # Copyright 2022 by the author(s) of this code.
 # All rights reserved.
 
+
 import numpy as np
-import math
 import random as rand
 import json
 import matplotlib.pyplot as plt
 import pickle
-import logging
 
 #activation functions
 def linear(x):
@@ -39,7 +38,15 @@ def softmax_derivative(x):
 
 
 class _Layer:
-    def __init__(self, inNodes, outNodes, activation, activationDerivative):
+    def __init__(self, inNodes : int, outNodes : int, activation, activationDerivative):
+        """Initalize a new layer with the given number of nodes and activation function
+        
+        Arguments:
+            inNodes [int] -- number of nodes in the previous layer
+            outNodes [int] -- number of nodes in this layer
+            activation [function] -- activation function for this layer
+            activationDerivative [function] -- derivative of the activation function
+        """
         self.inNodes = inNodes
         self.outNodes = outNodes
         self.activation = activation
@@ -55,7 +62,15 @@ class _Layer:
         self.weights = np.random.randn(inNodes, outNodes)
         self.biases = np.zeros((outNodes))
 
-    def calculateOutputs(self, inputs):
+    def calculateOutputs(self, inputs : list[float]):
+        """Calculate the outputs of this layer
+        
+        Arguments:
+            inputs {list[float]} -- inputs to this layer
+        
+        Returns:
+            list[float] -- outputs of this layer
+        """
         weightedInputs = np.zeros((self.outNodes))
         self.inputs = inputs
 
@@ -69,7 +84,12 @@ class _Layer:
         self.activations = weightedInputs
         return weightedInputs
 
-    def applyGradient(self, learningRate):
+    def applyGradient(self, learningRate : float):
+        """Apply the gradient to the weights and biases
+        
+        Arguments:
+            learningRate {float} -- learning rate
+        """
         for nodeOutput in range(self.outNodes):
             for nodeInput in range(self.inNodes):
                 self.weights[nodeInput][nodeOutput] = learningRate * self.weightGradient[nodeInput][nodeOutput]
@@ -118,34 +138,81 @@ class _Layer:
     
 
 class DataPoint:
-    def __init__(self, inputs, targets):
+    def __init__(self, inputs : list[float], targets : list[float]):
+        """A single with inputs and targets
+
+        Args:
+            inputs (List[float]): The inputs of the data point
+            targets (List[float]): The targets to achieve
+        """
         self.inputs = inputs
         self.targets = targets
     
-    def getInput(self, index):
+    def getInput(self, index : int):
+        """Get the input at the given index
+
+        Args:
+            index (int): The index of the input
+
+        Returns:
+            float: The input at the given index
+        """
         return self.inputs[index]
     
     def getTarget(self, index):
+        """Get the target at the given index
+
+        Args:
+            index (int): The index of the target
+
+        Returns:
+            float: The target at the given index
+        """
         return self.targets[index]
 
     def getInputs(self):
+        """"Get the inputs of the data point
+
+        Returns:
+            List[float]: The inputs of the data point
+        """
         return self.inputs
 
     def getTargets(self):
+        """Get the targets of the data point
+
+        Returns:
+            List[float]: The targets of the data point
+        """
         return self.targets
 
 
 class NeuralNetwork:
-    def __init__(self, layer_sizes : list, activation_function, activation_function_derivative):
+    def __init__(self, layer_sizes : list[int], activation_function, activation_function_derivative):
+        """Creates a new neural network with the given layer sizes and activation functions
+
+        Args:
+            layer_sizes (list[int]): The sizes of the layers in the network
+            activation_function (Function): The activation function to use for the network
+            activation_function_derivative (Function): The derivative of the activation function to use for the network
+        """
         self.layer_sizes = layer_sizes
         self.layers = [] #list of layers
-        self.costVecor = []
+        self.costVecor = [] #list of costs
         for i in range(len(layer_sizes)-1):
             self.layers.append(_Layer(layer_sizes[i], layer_sizes[i+1], activation_function, activation_function_derivative)) #create layers
         self.activation_function = activation_function
         self.activation_function_derivative = activation_function_derivative
         
-    def calculateOutputs(self, inputs):
+    def calculateOutputs(self, inputs: list):
+        """Calculates the outputs of the network for the given inputs
+
+        Args:
+            inputs (List): The input values for the network
+
+        Returns:
+            List[float]: The output values of the network
+        """
         outputs = inputs
         for layer in self.layers:
             outputs = layer.calculateOutputs(outputs)
@@ -158,6 +225,14 @@ class NeuralNetwork:
         return 2*(output - target)
     
     def cost(self, dataPoint : DataPoint):
+        """Calculates the cost of the network for the given data point
+
+        Args:
+            dataPoint (DataPoint): The data point to calculate the cost for
+
+        Returns:
+            float: The cost of the network for the given data point
+        """
         outputs = self.calculateOutputs(dataPoint.getInputs())
         cost = 0
         for i in range(len(outputs)):
@@ -171,17 +246,30 @@ class NeuralNetwork:
             costDerivative.append(2*(outputs[i] - dataPoint.getTarget(i)))
         return costDerivative
     
-    def avrageCost(self, data : list):
+    def avrageCost(self, data : list[DataPoint]):
+        """Calculate the avrage cost of the network based on given data
+        
+        Args:
+            data (list[DataPoint]): list of data points to calculate the avrage cost of
+        Returns:
+            float: avrage cost of the network
+        """
         cost = 0
         for dataPoint in data:
             cost += self.cost(dataPoint)
         return cost / len(data)
     
     def applyGradients(self, learningRate):
+        """Applies the gradients to the weights and biases
+        
+        Args:
+            learningRate (float): The learning rate
+        """
         for layer in self.layers:
             layer.applyGradient(learningRate)
     
     def clearGradients(self):
+        """Clears the gradients of the weights and biases"""
         for layer in self.layers:
             layer.clearGradients()
     
@@ -200,7 +288,14 @@ class NeuralNetwork:
         self.applyGradients(learningRate / len(dataPoints))
         self.clearGradients()
     
-    def learn(self, dataPoints : list, learningRate, iterations):
+    def learn(self, dataPoints : list[DataPoint], iterations : int, learningRate=0.1):
+        """[WIP] Trains the neural network with backpropagation on the given data points
+        
+        Args:
+            dataPoints (list[DataPoint]): The data points to train on
+            iterations (int): The number of iterations to train for
+            learningRate (float, optional): The learning rate. Defaults to 0.1.
+        """
         for i in range(iterations):
             self._learn(dataPoints, learningRate)
             if i % 100 == 0:
@@ -228,20 +323,38 @@ class NeuralNetwork:
 
         self.applyGradients(learningRate)
     
-    def trainWithGradientDescend(self, data : list, epochs, batch_size,learningRate = 0.1):
-            for i in range(epochs):
-                rand.shuffle(data)
-                batches = [data[k:k+batch_size] for k in range(0, len(data), batch_size)]
-                for batch in batches:
-                    self.gradientDescent(batch, learningRate)
-                if i % 100 == 0:
-                    self.costVecor.append([self.avrageCost(data), i])
-                    print("Epoch: " + str(i) + " Cost: " + str(self.avrageCost(data)))
+    def trainWithGradientDescend(self, data : list[DataPoint], epochs : int, batch_size : int ,learningRate = 0.1):
+        """Trains the network with gradient descend
+
+        Args:
+            data (list[DataPoint]): list of data points to train with
+            epochs (int): number of epochs to train
+            batch_size (int): size of the batch to train with each epoch
+            learningRate (float, optional): The rate the network learns with. Defaults to 0.1.
+        """
+        for i in range(epochs):
+            rand.shuffle(data)
+            batches = [data[k:k+batch_size] for k in range(0, len(data), batch_size)]
+            for batch in batches:
+                self.gradientDescent(batch, learningRate)
+            if i % 100 == 0:
+                self.costVecor.append([self.avrageCost(data), i])
+                print("Epoch: " + str(i) + " Cost: " + str(self.avrageCost(data)))
     
-    def save(self, fileName):
+    def save(self, fileName : str):
+        """Saves the network to a file
+
+        Args:
+            fileName (str): name of the file to save to
+        """
         with open(fileName, "wb") as f:
             pickle.dump(self, f)
     
-    def load(fileName):
+    def load(fileName : str):
+        """loads a network from a file
+        
+        Args:
+            fileName (str): name of the file to load from
+        """
         with open(fileName, "rb") as f:
             return pickle.load(f)
