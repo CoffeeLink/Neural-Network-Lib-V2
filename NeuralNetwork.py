@@ -344,19 +344,6 @@ class NeuralNetwork:
         self.applyGradients(learningRate / len(dataPoints))
         self.clearGradients()
     
-    def learn(self, dataPoints : list[DataPoint], iterations : int, learningRate=0.1):
-        """[WIP] Trains the neural network with backpropagation on the given data points
-        
-        Args:
-            dataPoints (list[DataPoint]): The data points to train on
-            iterations (int): The number of iterations to train for
-            learningRate (float, optional): The learning rate. Defaults to 0.1.
-        """
-        for i in range(iterations):
-            self._learn(dataPoints, learningRate)
-            if i % 100 == 0:
-                print("Iteration: " + str(i) + " Cost: " + str(self.avrageCost(dataPoints)))
-    
     def gradientDescent(self, data : list, learningRate = 0.1):
         h = 0.0001
         self.clearGradients()
