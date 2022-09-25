@@ -4,13 +4,15 @@
 
 import numpy as np
 import random as rand
+import logging
+import matplotlib as mpl
 import json
 import pickle
 
 
 #activation functions
 class ActivationFunction:
-    def __init__(self, activation, derivative):
+    def __init__(self, activation, derivative, activation_id):
         """ActivationFunction is a class that holds an activation function and its derivative.
 
         Args:
@@ -19,6 +21,7 @@ class ActivationFunction:
         """
         self.activation = activation
         self.derivative = derivative
+        self.activation_id = activation_id
     
     def __call__(self, x : float):
         """__call__ is a function that calls the activation function.
@@ -50,7 +53,7 @@ class sigmoidActivation(ActivationFunction):
         return self.sigmoid(x)*(1-self.sigmoid(x))
     
     def __init__(self):
-        super().__init__(self.sigmoid, self.sigmoid_derivative)
+        super().__init__(self.sigmoid, self.sigmoid_derivative, 1)
 
 class linearActivation(ActivationFunction):
     def linear(self, x):
@@ -60,7 +63,7 @@ class linearActivation(ActivationFunction):
         return 1
     
     def __init__(self):
-        super().__init__(self.linear, self.linear_derivative)
+        super().__init__(self.linear, self.linear_derivative, 0)
 
 class tanhActivation(ActivationFunction):
     def tanh(self, x):
@@ -69,7 +72,7 @@ class tanhActivation(ActivationFunction):
     def tanh_derivative(self, x):
         return 1.0 - x**2
     def __init__(self):
-        super().__init__(self.tanh, self.tanh_derivative)
+        super().__init__(self.tanh, self.tanh_derivative, 2)
 
 class reluActivation(ActivationFunction):
     def relu(self, x):
@@ -79,7 +82,7 @@ class reluActivation(ActivationFunction):
         return 1*(x>0)
     
     def __init__(self):
-        super().__init__(self.relu, self.relu_derivative)
+        super().__init__(self.relu, self.relu_derivative, 3)
 
 class softmaxActivation(ActivationFunction):
     def softmax(self, x):
@@ -89,7 +92,7 @@ class softmaxActivation(ActivationFunction):
         return self.softmax(x)*(1-self.softmax(x))
     
     def __init__(self):
-        super().__init__(self.softmax, self.softmax_derivative)
+        super().__init__(self.softmax, self.softmax_derivative, 5)
 
 class _Layer:
     def __init__(self, inNodes : int, outNodes : int, activation, activationDerivative):
@@ -247,12 +250,15 @@ class NeuralNetwork:
             activation_function (ActivationFunction): The activation function to use for the network (same for all layers)
         """
         self.layer_sizes = layer_sizes
+        self.known_activation_functions = {0: linearActivation(), 1: sigmoidActivation(), 2: tanhActivation(), 3: reluActivation(), 5: softmaxActivation()} # a dict for the activation functions to use when importing a network
         self.layers = [] #list of layers
         self.costVecor = [] #list of costs
         for i in range(len(layer_sizes)-1):
             self.layers.append(_Layer(layer_sizes[i], layer_sizes[i+1], activation_function, activation_function.derivative)) #create layers
         self.activation_function = activation_function
         self.activation_function_derivative = activation_function.derivative
+        self.l0NumNodesIn = layer_sizes[0]
+        self.l0NumNodesOut = layer_sizes[1] # the number of nodes in the 2. layer
         
     def calculateOutputs(self, inputs: list):
         """Calculates the outputs of the network for the given inputs
@@ -389,22 +395,41 @@ class NeuralNetwork:
                 self.gradientDescent(batch, learningRate)
             if i % 100 == 0:
                 self.costVecor.append([self.avrageCost(data), i])
-                print("Epoch: " + str(i) + " Cost: " + str(self.avrageCost(data)))
+                logging.debug("Epoch: " + str(i) + " Cost: " + str(self.avrageCost(data)))
     
-    def save(self, fileName : str):
+    def exportNetwork(self, fileName : str):
         """Saves the network to a file
 
         Args:
             fileName (str): name of the file to save to
         """
-        with open(fileName, "wb") as f:
-            pickle.dump(self, f)
+        with open(fileName, "w+") as f:
+            f.truncate(0)
+            parsed = {"layers" : [], "layerSizes" : self.layer_sizes}
+            i = 0
+            w = np.zeros((self.l0NumNodesIn, self.l0NumNodesOut)).tolist()
+            b = np.zeros(self.l0NumNodesOut).tolist()
+            parsed["layers"].append({"weights" : w, "biases" : b, "isInputLayer" : True, "activationType": 0})
+            for layer in self.layers:
+                parsed["layers"].append({"weights" : layer.weights.tolist(), "biases" : layer.biases.tolist(), "isInputLayer" : False, "activationType": layer.activation.activation_id})
+            f.write(json.dumps(parsed, indent=4, sort_keys=True))
+                
     
-    def load(fileName : str):
+    def importNetwork(self, fileName : str):
         """loads a network from a file
         
         Args:
             fileName (str): name of the file to load from
         """
-        with open(fileName, "rb") as f:
-            return pickle.load(f)
+        with open(fileName, "r") as f:
+            parsed = json.load(f)
+            layers = []
+            for layer in parsed["layers"]:
+                if not layer["isInputLayer"]:
+                    layerC = _Layer(inNodes=len(layer["weights"]), outNodes=len(layer["biases"]), activation=self.known_activation_functions[layer["activationType"]], activationDerivative=self.known_activation_functions[layer["activationType"]].derivative)
+                    layerC.weights = np.array(layer["weights"])
+                    layerC.biases = np.array(layer["biases"])
+                    layers.append(layerC)
+                else:
+                    self.layer_sizes[0] = len(layer["biases"])
+            self.layers = layers
