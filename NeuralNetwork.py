@@ -146,7 +146,7 @@ class _Layer:
         """
         for nodeOutput in range(self.outNodes):
             for nodeInput in range(self.inNodes):
-                self.weights[nodeInput][nodeOutput] = learningRate * self.weightGradient[nodeInput][nodeOutput]
+                self.weights[nodeInput][nodeOutput] -= learningRate * self.weightGradient[nodeInput][nodeOutput]
             self.biases[nodeOutput] -= learningRate * self.biasGradient[nodeOutput]
     
     def clearGradients(self):
