@@ -2,3 +2,4 @@ andNetwork.pkl
 __pycache__
 .pytest_cache
 .vscode
+.__init__.py
