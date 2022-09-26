@@ -8,11 +8,14 @@ It has some simple stuff implemented but currenly it can only learn with gradien
 ### Table Of Contents
 #### Classes
 - [NeuralNetwork](#NeuralNetwork)
-- [_Layer](#Layer)
+- [_Layer](#_Layer)
 - [ActivationFunction](#ActivationFunction)
 - [DataPoint](#DataPoint)
 #### NeuralNetwork
 ##### Methods
+- [__init__]
+- [calculateOutputs]
+- []
 
 ##### Variables
 #### _Layer
