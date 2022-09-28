@@ -5,7 +5,7 @@
 import numpy as np
 import random as rand
 import logging
-import matplotlib as mpl
+import matplotlib.pyplot as mpl
 import json
 import pickle
 
@@ -253,6 +253,7 @@ class NeuralNetwork:
         self.known_activation_functions = {0: linearActivation(), 1: sigmoidActivation(), 2: tanhActivation(), 3: reluActivation(), 5: softmaxActivation()} # a dict for the activation functions to use when importing a network
         self.layers = [] #list of layers
         self.costVecor = [] #list of costs
+        self.testCost = [] #list of test costs
         for i in range(len(layer_sizes)-1):
             self.layers.append(_Layer(layer_sizes[i], layer_sizes[i+1], activation_function, activation_function.derivative)) #create layers
         self.activation_function = activation_function
@@ -366,7 +367,7 @@ class NeuralNetwork:
 
         self.applyGradients(learningRate)
     
-    def trainWithGradientDescend(self, data : list[DataPoint], epochs : int, batch_size : int ,learningRate = 0.1):
+    def trainWithGradientDescend(self, data : list[DataPoint], epochs : int, batch_size : int ,learningRate = 0.1, test_data = None, Visualize = False):
         """Trains the network with gradient descend
 
         Args:
@@ -380,9 +381,20 @@ class NeuralNetwork:
             batches = [data[k:k+batch_size] for k in range(0, len(data), batch_size)]
             for batch in batches:
                 self.gradientDescent(batch, learningRate)
-            if i % 100 == 0:
-                self.costVecor.append([self.avrageCost(data), i])
+            if i % 10 == 0:
+                self.costVecor.append([self.avrageCost(data)])
+                if test_data != None:
+                    self.testCost.append([self.avrageCost(test_data)])
+                if Visualize:
+                    epochVec = []
+                    for i in range(len(self.costVecor)):
+                        epochVec.append(i)
+                    mpl.plot(epochVec ,self.costVecor, color="r")
+                    mpl.plot(epochVec, self.testCost, color="b")
+                    mpl.pause(0.0001)
                 logging.debug("Epoch: " + str(i) + " Cost: " + str(self.avrageCost(data)))
+        if Visualize:
+            mpl.show()
     
     def exportNetwork(self, fileName : str):
         """Saves the network to a file
