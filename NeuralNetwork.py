@@ -115,6 +115,8 @@ class _Layer:
         
         self.weightGradient = np.zeros((inNodes, outNodes))
         self.biasGradient = np.zeros((outNodes))
+        self.onlineWeightGradient = []
+        self.onlineBiasGradient = []
         
         self.weights = np.random.randn(inNodes, outNodes)
         self.biases = np.zeros((outNodes))
@@ -152,6 +154,22 @@ class _Layer:
                 self.weights[nodeInput][nodeOutput] -= learningRate * self.weightGradient[nodeInput][nodeOutput]
             self.biases[nodeOutput] -= learningRate * self.biasGradient[nodeOutput]
     
+    def applyOnlineGradient(self, learningRate : float):
+        """Apply the gradient to the weights and biases
+        
+        Arguments:
+            learningRate {float} -- learning rate
+        """
+        for setIndex in range(len(self.onlineWeightGradient)):
+            for nodeOutput in range(self.outNodes):
+                for nodeInput in range(self.inNodes):
+                    self.weights[nodeInput][nodeOutput] -= learningRate * self.onlineWeightGradient[setIndex][nodeInput][nodeOutput]
+                self.biases[nodeOutput] -= learningRate * self.onlineBiasGradient[setIndex][nodeOutput]
+    
+    def clearOnlineGradient(self):
+        self.onlineWeightGradient = []
+        self.onlineBiasGradient = []
+    
     def clearGradients(self):
         self.weightGradient = np.zeros((self.inNodes, self.outNodes))
         self.biasGradient = np.zeros((self.outNodes))
@@ -171,13 +189,13 @@ class _Layer:
         
         return nodeValues
 
-    def updateGradients(self, nodeValues):
+    def updateGradients(self, nodeValues, dataIndex):
         for nodeOutput in range(self.outNodes):
             for nodeInput in range(self.inNodes):
                 derivativeCostWithRespectToWeight = nodeValues[nodeOutput] * self.inputs[nodeInput]
-                self.weightGradient[nodeInput][nodeOutput] += derivativeCostWithRespectToWeight
+                self.onlineWeightGradient[dataIndex][nodeInput][nodeOutput] += derivativeCostWithRespectToWeight
             derivativeCostWithRespectToBias = nodeValues[nodeOutput]
-            self.biasGradient += derivativeCostWithRespectToBias
+            self.onlineBiasGradient[dataIndex][nodeOutput] += derivativeCostWithRespectToBias
     
     def calculateHiddenLayerValues(self, oldLayer, oldNodeValues):
         newNodeValues = np.zeros((self.outNodes))
@@ -239,7 +257,6 @@ class DataPoint:
             List[float]: The targets of the data point
         """
         return self.targets
-
 
 class NeuralNetwork:
     def __init__(self, layer_sizes : list[int], activation_function : ActivationFunction):
@@ -324,25 +341,44 @@ class NeuralNetwork:
         for layer in self.layers:
             layer.applyGradient(learningRate)
     
+    def applyOnlineGradients(self, learningRate):
+        """Applies the online gradients to the weights and biases
+        
+        Args:
+            learningRate (float): The learning rate
+        """
+        for layer in self.layers:
+            layer.applyOnlineGradient(learningRate)
+    
+    def clearOnlineGradients(self):
+        """Clears the online gradients"""
+        for layer in self.layers:
+            layer.clearOnlineGradient()
+    
     def clearGradients(self):
         """Clears the gradients of the weights and biases"""
         for layer in self.layers:
             layer.clearGradients()
     
-    def updateAllGradients(self, dataPoint : DataPoint):
+    def updateAllGradients(self, dataPoint : DataPoint, dataPointIndex : int):
         self.calculateOutputs(dataPoint.getInputs())
         outLayer = self.layers[-1]
         nodeValues = outLayer.calculateOutputLayerValues(dataPoint.getTargets())
-        outLayer.updateGradients(nodeValues)
+        outLayer.updateGradients(nodeValues, dataPointIndex)
         for i in range(len(self.layers)-2, -1, -1):
             nodeValues = self.layers[i].calculateHiddenLayerValues(self.layers[i+1], nodeValues)
-            self.layers[i].updateGradients(nodeValues)
+            self.layers[i].updateGradients(nodeValues, dataPointIndex)
             
-    def _learn(self, dataPoints : list, learningRate):
+    def trainOnline(self, dataPoints : list, learningRate):
+        for layer in self.layers:
+            layer.onlineWeightGradient = np.zeros((len(dataPoints), layer.inNodes, layer.outNodes))
+            layer.onlineBiasGradient = np.zeros((len(dataPoints), layer.outNodes))
+        i = 0
         for dataPoint in dataPoints:
-            self.updateAllGradients(dataPoint)
-        self.applyGradients(learningRate / len(dataPoints))
-        self.clearGradients()
+            self.updateAllGradients(dataPoint, i)
+            i += 1
+        self.applyOnlineGradients(learningRate)
+        self.clearOnlineGradients()
     
     def gradientDescent(self, data : list, learningRate = 0.1):
         h = 0.0001
