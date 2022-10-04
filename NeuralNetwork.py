@@ -2,12 +2,11 @@
 # All rights reserved.
 
 
+from threading import Thread
 import numpy as np
 import random as rand
 import logging
-import matplotlib as mpl
 import json
-import pickle
 
 
 #activation functions
@@ -95,7 +94,7 @@ class softmaxActivation(ActivationFunction):
         super().__init__(self.softmax, self.softmax_derivative, 5)
 
 class _Layer:
-    def __init__(self, inNodes : int, outNodes : int, activation, activationDerivative):
+    def __init__(self, inNodes : int, outNodes : int, activation, activationDerivative, threadLimit : int = 1):
         """Initalize a new layer with the given number of nodes and activation function
         
         Arguments:
@@ -113,8 +112,9 @@ class _Layer:
         self.weightedInputs = np.zeros((outNodes))
         self.inputs = np.zeros((inNodes))
         
-        self.weightGradient = np.zeros((inNodes, outNodes))
-        self.biasGradient = np.zeros((outNodes))
+        self.weightGradient = np.zeros(np.shape([threadLimit, inNodes, outNodes]))
+        self.biasGradient = np.zeros((threadLimit, outNodes))
+        self.threadLimit = threadLimit
         
         self.weights = np.random.randn(inNodes, outNodes)
         self.biases = np.zeros((outNodes))
@@ -147,10 +147,11 @@ class _Layer:
         Arguments:
             learningRate {float} -- learning rate
         """
-        for nodeOutput in range(self.outNodes):
-            for nodeInput in range(self.inNodes):
-                self.weights[nodeInput][nodeOutput] -= learningRate * self.weightGradient[nodeInput][nodeOutput]
-            self.biases[nodeOutput] -= learningRate * self.biasGradient[nodeOutput]
+        for thread in range(self.threadLimit):
+            for nodeOutput in range(self.outNodes):
+                for nodeInput in range(self.inNodes):
+                    self.weights[nodeInput][nodeOutput] -= learningRate * self.weightGradient[thread][nodeInput][nodeOutput]
+                self.biases[nodeOutput] -= learningRate * self.biasGradient[thread][nodeOutput]
     
     def clearGradients(self):
         self.weightGradient = np.zeros((self.inNodes, self.outNodes))
@@ -242,7 +243,7 @@ class DataPoint:
 
 
 class NeuralNetwork:
-    def __init__(self, layer_sizes : list[int], activation_function : ActivationFunction):
+    def __init__(self, layer_sizes : list[int], activation_function : ActivationFunction, threadLimit : int = 1):
         """Creates a new neural network with the given layer sizes and activation functions
 
         Args:
@@ -254,11 +255,12 @@ class NeuralNetwork:
         self.layers = [] #list of layers
         self.costVecor = [] #list of costs
         for i in range(len(layer_sizes)-1):
-            self.layers.append(_Layer(layer_sizes[i], layer_sizes[i+1], activation_function, activation_function.derivative)) #create layers
+            self.layers.append(_Layer(layer_sizes[i], layer_sizes[i+1], activation_function, activation_function.derivative, threadLimit=threadLimit)) #create layers
         self.activation_function = activation_function
         self.activation_function_derivative = activation_function.derivative
         self.l0NumNodesIn = layer_sizes[0]
         self.l0NumNodesOut = layer_sizes[1] # the number of nodes in the 2. layer
+        self.threadLimit = threadLimit
         
     def calculateOutputs(self, inputs: list):
         """Calculates the outputs of the network for the given inputs
@@ -357,7 +359,7 @@ class NeuralNetwork:
             if i % 100 == 0:
                 print("Iteration: " + str(i) + " Cost: " + str(self.avrageCost(dataPoints)))
     
-    def gradientDescent(self, data : list, learningRate = 0.1):
+    def gradientDescent(self, data : list, learningRate = 0.1, threadId = 0):
         h = 0.0001
         self.clearGradients()
         
@@ -369,13 +371,13 @@ class NeuralNetwork:
                     layer.weights[nodeInput][nodeOutput] += h
                     deltaCost = self.avrageCost(data) - originalCost
                     layer.weights[nodeInput][nodeOutput] -= h
-                    layer.weightGradient[nodeInput][nodeOutput] = deltaCost / h
+                    layer.weightGradient[threadId][nodeInput][nodeOutput] = deltaCost / h
             
             for nodeOutput in range(layer.outNodes):
                 layer.biases[nodeOutput] += h
                 deltaCost = self.avrageCost(data) - originalCost
                 layer.biases[nodeOutput] -= h
-                layer.biasGradient[nodeOutput] = deltaCost / h
+                layer.biasGradient[threadId][nodeOutput] = deltaCost / h
 
         self.applyGradients(learningRate)
     
@@ -393,6 +395,30 @@ class NeuralNetwork:
             batches = [data[k:k+batch_size] for k in range(0, len(data), batch_size)]
             for batch in batches:
                 self.gradientDescent(batch, learningRate)
+            if i % 100 == 0:
+                self.costVecor.append([self.avrageCost(data), i])
+                logging.debug("Epoch: " + str(i) + " Cost: " + str(self.avrageCost(data)))
+    
+    def trainWithGradientDescendMultiThread(self, data : list[DataPoint], epochs : int, batch_size : int ,learningRate = 0.1, threadCount = 1):
+        """Trains the network with gradient descend
+
+        Args:
+            data (list[DataPoint]): list of data points to train with
+            epochs (int): number of epochs to train
+            batch_size (int): size of the batch to train with each epoch
+            learningRate (float, optional): The rate the network learns with. Defaults to 0.1.
+        """
+        for i in range(epochs):
+            rand.shuffle(data)
+            batches = [data[k:k+batch_size] for k in range(0, len(data), batch_size)]
+            for batch in batches:
+                threads = []
+                for threadId in range(threadCount):
+                    threads.append(Thread(target=self.gradientDescent, args=(batch, learningRate, threadId)))
+                for thread in threads:
+                    thread.start()
+                for thread in threads:
+                    thread.join()
             if i % 100 == 0:
                 self.costVecor.append([self.avrageCost(data), i])
                 logging.debug("Epoch: " + str(i) + " Cost: " + str(self.avrageCost(data)))
