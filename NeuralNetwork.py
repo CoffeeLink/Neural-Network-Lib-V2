@@ -2,6 +2,7 @@
 # All rights reserved.
 
 
+import time
 import numpy as np
 import random as rand
 import logging
@@ -47,9 +48,11 @@ class ActivationFunction:
 
 class sigmoidActivation(ActivationFunction):
     def sigmoid(self, x):
+        x = np.clip(x, -500, 500 )
         return 1/(1+np.exp(-x))
 
     def sigmoid_derivative(self, x):
+        x = np.clip(x, -500, 500 )
         return self.sigmoid(x)*(1-self.sigmoid(x))
     
     def __init__(self):
@@ -109,15 +112,15 @@ class _Layer:
         self.activation = activation
         self.activationDerivative = activationDerivative
         
-        self.activations = np.zeros((outNodes))
-        self.weightedInputs = np.zeros((outNodes))
-        self.inputs = np.zeros((inNodes))
+        self.activations = np.zeros((outNodes), dtype=np.complex128)
+        self.weightedInputs = np.zeros((outNodes), dtype=np.complex128)
+        self.inputs = np.zeros((inNodes), dtype=np.complex128)
         
-        self.weightGradient = np.zeros((inNodes, outNodes))
-        self.biasGradient = np.zeros((outNodes))
+        self.weightGradient = np.zeros((inNodes, outNodes), dtype=np.complex128)
+        self.biasGradient = np.zeros((outNodes), dtype=np.complex128)
         
-        self.weights = np.random.randn(inNodes, outNodes)
-        self.biases = np.zeros((outNodes))
+        self.weights = np.array(np.random.randn(inNodes, outNodes), dtype=np.complex128)
+        self.biases = np.zeros((outNodes), dtype=np.complex128)
 
     def calculateOutputs(self, inputs : list[float]):
         """Calculate the outputs of this layer
@@ -128,8 +131,9 @@ class _Layer:
         Returns:
             list[float] -- outputs of this layer
         """
-        weightedInputs = np.zeros((self.outNodes))
-        self.inputs = inputs
+        weightedInputs = np.zeros((self.outNodes), dtype=np.complex128)
+        self.inputs = np.array(inputs, dtype=np.complex128)
+        inputs = np.array(inputs, dtype=np.complex128)
 
         for nodeOutput in range(self.outNodes):
             weightedInput = self.biases[nodeOutput]
@@ -358,7 +362,7 @@ class NeuralNetwork:
                 print("Iteration: " + str(i) + " Cost: " + str(self.avrageCost(dataPoints)))
     
     def gradientDescent(self, data : list, learningRate = 0.1):
-        h = 0.0001
+        h = np.complex128(0.0001)
         self.clearGradients()
         
         originalCost = self.avrageCost(data)
@@ -367,13 +371,13 @@ class NeuralNetwork:
             for nodeInput in range(layer.inNodes):
                 for nodeOutput in range(layer.outNodes):
                     layer.weights[nodeInput][nodeOutput] += h
-                    deltaCost = self.avrageCost(data) - originalCost
+                    deltaCost = np.complex128(self.avrageCost(data) - originalCost)
                     layer.weights[nodeInput][nodeOutput] -= h
                     layer.weightGradient[nodeInput][nodeOutput] = deltaCost / h
             
             for nodeOutput in range(layer.outNodes):
                 layer.biases[nodeOutput] += h
-                deltaCost = self.avrageCost(data) - originalCost
+                deltaCost = np.complex128(self.avrageCost(data) - originalCost)
                 layer.biases[nodeOutput] -= h
                 layer.biasGradient[nodeOutput] = deltaCost / h
 
@@ -389,13 +393,16 @@ class NeuralNetwork:
             learningRate (float, optional): The rate the network learns with. Defaults to 0.1.
         """
         for i in range(epochs):
+            st = time.time()
             rand.shuffle(data)
             batches = [data[k:k+batch_size] for k in range(0, len(data), batch_size)]
             for batch in batches:
                 self.gradientDescent(batch, learningRate)
-            if i % 100 == 0:
+            if i % 2 == 0:
                 self.costVecor.append([self.avrageCost(data), i])
                 logging.debug("Epoch: " + str(i) + " Cost: " + str(self.avrageCost(data)))
+                #Temporary
+                print("Epoch: " + str(i) + " Cost: " + str(self.avrageCost(data)) + " Time: " + str(time.time() - st)+ "s")
     
     def exportNetwork(self, fileName : str):
         """Saves the network to a file
